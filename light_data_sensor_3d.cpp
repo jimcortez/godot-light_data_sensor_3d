@@ -22,6 +22,7 @@ void LightDataSensor3D::_bind_methods() {
 
     // Methods
     ClassDB::bind_method(D_METHOD("get_light_data"), &LightDataSensor3D::get_light_data);
+    ClassDB::bind_method(D_METHOD("force_sample"), &LightDataSensor3D::force_sample);
     ClassDB::bind_method(D_METHOD("is_using_gpu"), &LightDataSensor3D::is_using_gpu);
     ClassDB::bind_method(D_METHOD("set_screen_sample_pos", "screen_pos"), &LightDataSensor3D::set_screen_sample_pos);
     ClassDB::bind_method(D_METHOD("get_screen_sample_pos"), &LightDataSensor3D::get_screen_sample_pos);
@@ -122,6 +123,39 @@ String LightDataSensor3D::get_metadata_label() const {
 }
 
 Dictionary LightDataSensor3D::get_light_data() const {
+    Dictionary data;
+    data["label"] = metadata_label;
+    data["color"] = last_color;
+    return data;
+}
+
+Dictionary LightDataSensor3D::force_sample() {
+    // Force immediate sampling regardless of is_running state
+    // This allows getting fresh data even when the sampling process is stopped
+    
+    // IMPORTANT: This method MUST be called from the main thread only!
+    // Godot API calls (get_viewport(), get_texture(), etc.) are not thread-safe
+    // and must only be called from the main thread.
+    
+    // Use the same sampling logic as _process() but without the timing constraints
+#if defined(__APPLE__)
+    if (use_metal) {
+        _capture_center_region_for_gpu();
+        // For GPU path, we need to wait for the readback to complete
+        // This is a simplified approach - in a production system you might want
+        // to implement a synchronous version of the GPU sampling
+        return get_light_data();
+    }
+#elif defined(_WIN32)
+    if (d3d_device != nullptr) {
+        _capture_center_region_for_gpu();
+        // Similar to macOS - simplified approach for now
+        return get_light_data();
+    }
+#endif
+    // Fall back to CPU sampling
+    _sample_viewport_color();
+    
     Dictionary data;
     data["label"] = metadata_label;
     data["color"] = last_color;

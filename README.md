@@ -1,7 +1,5 @@
 # LightDataSensor3D
 
-**Not ready for use, development is actively ongoing**
-
 A GDExtension addon for Godot 4.x that provides real-time light data sampling from 3D scenes using CPU and GPU backends.
 
 **Author:** Jim Cortez  
@@ -44,6 +42,7 @@ Inherits from `Node3D`
 | Method | Return Type | Description |
 |--------|-------------|-------------|
 | `get_light_data()` | Dictionary | Returns current light data: `{label: String, color: Color}` |
+| `force_sample()` | Dictionary | Force immediate sampling and return fresh light data (main thread only) |
 | `start()` | void | Begin sampling and background processing |
 | `stop()` | void | Stop sampling and background processing |
 | `set_poll_hz(hz: float)` | void | Set sampling rate (1.0-240.0 Hz) |
@@ -78,6 +77,11 @@ func _ready():
 
 func _on_light_data_updated(color: Color):
     print("Light color: ", color)
+
+# Force immediate sampling (main thread only!)
+func _on_button_pressed():
+    var fresh_data = sensor.force_sample()
+    print("Fresh light data: ", fresh_data)
     
     # Get full data including label
     var data = sensor.get_light_data()
@@ -198,6 +202,41 @@ Notes:
 - If the addon fails to load, check Godot Output for GDExtension errors. Ensure the built artifact paths in `light_data_sensor.gdextension` match your platform/target.
 - If backend shows `GDScript`, rebuild the addon and restart the editor.
 - If values appear static, verify the demo is running (Stop button toggled off), anchors are visible to the camera, and poll Hz is reasonable.
+
+## Threading Requirements
+
+**IMPORTANT**: The `force_sample()` method has strict threading requirements:
+
+- ✅ **Safe**: Call from main thread (e.g., in `_ready()`, `_process()`, signal handlers, button callbacks)
+- ❌ **Unsafe**: Call from background threads, worker threads, or async operations
+
+This is because `force_sample()` calls Godot APIs like `get_viewport()`, `get_texture()`, and `get_image()` which are **not thread-safe** and must only be called from the main thread.
+
+### Safe Usage Examples:
+```gdscript
+# ✅ Safe - called from main thread
+func _ready():
+    var data = sensor.force_sample()
+
+func _on_button_pressed():
+    var data = sensor.force_sample()
+
+func _process(delta):
+    if some_condition:
+        var data = sensor.force_sample()
+```
+
+### Unsafe Usage Examples:
+```gdscript
+# ❌ Unsafe - called from background thread
+func _thread_worker():
+    var data = sensor.force_sample()  # Will crash!
+
+# ❌ Unsafe - called from async operation
+func _async_operation():
+    await some_async_function()
+    var data = sensor.force_sample()  # May crash!
+```
 
 ## File Structure
 

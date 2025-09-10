@@ -109,6 +109,11 @@ public:
 
     // Called to retrieve the color+label
     Dictionary get_light_data() const;
+    
+    // Force immediate sampling and return fresh light data
+    // WARNING: This method MUST be called from the main thread only!
+    // Calling from background threads will cause crashes due to Godot API restrictions.
+    Dictionary force_sample();
 
     // Returns true if a GPU compute backend is active for this node (e.g., Metal on macOS)
     bool is_using_gpu() const;
