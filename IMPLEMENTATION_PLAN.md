@@ -222,7 +222,7 @@ Goals
 - Allow user to rotate the cube using arrow keys; sensor readings should respond.
 
 Scene layout (high-level)
-- `M0Demo` (Node3D, script `m0_demo.gd`)
+- `BasicCubeDemo` (Node3D, script `basic_cube_demo.gd`)
   - `Pivot` (Node3D) — receives input-based rotation
     - `Cube` (MeshInstance3D or CSGBox3D) — unit cube centered at origin
     - `FaceAnchors` (Node3D)
@@ -254,7 +254,7 @@ Rendering notes
 - If the C++ backend is registered, use it via `get_light_data()`; otherwise fallback to the GDScript sampler
 
 Deliverables for Demo v2
-- Updated `m0_demo.tscn` and `m0_demo.gd`
+- Updated `basic_cube_demo.tscn` and `basic_cube_demo.gd`
 - Six `LightDataSensor3D` nodes correctly labeled and positioned
 - Arrow-key rotation functioning; readouts update as cube orientation changes relative to the projector
 - Minimal textures for face labels or `Label3D` text

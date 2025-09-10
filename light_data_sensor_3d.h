@@ -61,11 +61,8 @@ private:
 #endif
 
 #ifdef __APPLE__
-    // Opaque Metal handles (set up in platform-specific implementation). Unused until compute path is enabled.
-    MTLDeviceRef mtl_device = nullptr;
-    MTLCommandQueueRef mtl_command_queue = nullptr;
-    MTLComputePipelineStateRef mtl_compute_pipeline = nullptr;
-    MTLBufferRef mtl_output_buffer = nullptr; // Single RGBA32F pixel buffer
+    // Individual sensor Metal resources (now using shared resources)
+    MTLBufferRef mtl_output_buffer = nullptr; // Single RGBA32F pixel buffer per sensor
     bool use_metal = false;
 #endif
 

@@ -130,7 +130,7 @@ func _on_button_pressed():
    - The `LightDataSensor3D` node should appear in the Create Node dialog
 
 4. **Run the demo:**
-   - Open `demo/m0_demo.tscn` and press Play.
+   - Open `demo/basic_cube_demo.tscn` and press Play.
    - The overlay label should read:
      - macOS: `Backend: C++ (Metal)`
      - Windows: `Backend: C++`

@@ -10,11 +10,14 @@ env.Append(CPPPATH=["."])
 
 sources = [
     "light_data_sensor_3d.cpp",
+    "batch_compute_manager.cpp",
+    "light_sensor_manager.cpp",
     "register_types.cpp",
 ]
 if env["platform"] == "macos":
     # Objective-C++ source and Metal shader are used on macOS
     sources.append("platform/macos/light_data_sensor_3d_macos.mm")
+    sources.append("platform/macos/batch_compute_manager_macos.mm")
 if env["platform"] == "windows":
     sources.append("platform/windows/light_data_sensor_3d_windows.cpp")
 

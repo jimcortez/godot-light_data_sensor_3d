@@ -18,7 +18,7 @@ void LightDataSensor3D::_bind_methods() {
     // Properties
     ClassDB::bind_method(D_METHOD("set_metadata_label", "label"), &LightDataSensor3D::set_metadata_label);
     ClassDB::bind_method(D_METHOD("get_metadata_label"), &LightDataSensor3D::get_metadata_label);
-    ADD_PROPERTY(PropertyInfo(Variant::STRING, "metadata_label"), "set_metadata_label", "get_metadata_label");
+    // ADD_PROPERTY(PropertyInfo(Variant::STRING, "metadata_label"), "set_metadata_label", "get_metadata_label");
 
     // Methods
     ClassDB::bind_method(D_METHOD("get_light_data"), &LightDataSensor3D::get_light_data);
@@ -44,11 +44,7 @@ LightDataSensor3D::LightDataSensor3D() {
     fence_event = nullptr;
 #endif
 #ifdef __APPLE__
-    // Metal handles remain null until initialized in a future compute path step.
-    // These are scaffolding placeholders for M2 macOS support.
-    mtl_device = nullptr;
-    mtl_command_queue = nullptr;
-    mtl_compute_pipeline = nullptr;
+    // Individual sensor Metal resources (shared resources managed by MetalResourceManager)
     mtl_output_buffer = nullptr;
 #endif
 }

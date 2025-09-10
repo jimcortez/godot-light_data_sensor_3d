@@ -2,6 +2,8 @@
 #include <godot_cpp/godot.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include "light_data_sensor_3d.h"
+#include "batch_compute_manager.h"
+#include "light_sensor_manager.h"
 
 using namespace godot;
 
@@ -10,6 +12,8 @@ void initialize_light_data_sensor_module(ModuleInitializationLevel p_level) {
         return;
     }
     ClassDB::register_class<LightDataSensor3D>();
+    ClassDB::register_class<BatchComputeManager>();
+    ClassDB::register_class<LightSensorManager>();
 }
 
 void uninitialize_light_data_sensor_module(ModuleInitializationLevel p_level) {
