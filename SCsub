@@ -1,0 +1,13 @@
+import os
+
+Import("env")
+
+env_shared = env.Clone()
+env_shared.add_source_files(env.modules_sources, [
+    "light_data_sensor_3d.cpp",
+    # macOS Objective-C++ implementation for Metal compute (added in M2)
+    "platform/macos/light_data_sensor_3d_macos.mm",
+    # Windows D3D12 scaffold (added in M2)
+    "platform/windows/light_data_sensor_3d_windows.cpp",
+    "register_types.cpp",
+])
