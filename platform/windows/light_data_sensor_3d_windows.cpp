@@ -285,14 +285,16 @@ void LightDataSensor3D::_readback_loop() {
         void *mapped = nullptr; D3D12_RANGE read = {0, 16};
         if (SUCCEEDED(d3d_output_readback->Map(0, &read, &mapped)) && mapped) {
             float *p = reinterpret_cast<float *>(mapped);
-            last_color = Color(p[0], p[1], p[2], p[3]);
+            current_color = Color(p[0], p[1], p[2], p[3]);
+            current_light_level = 0.299f * p[0] + 0.587f * p[1] + 0.114f * p[2];
+            has_new_readings = true;
             d3d_output_readback->Unmap(0, nullptr);
         }
     }
 }
 
 Color LightDataSensor3D::_read_pixel_from_bar() {
-    return last_color;
+    return current_color;
 }
 
 #endif // _WIN32

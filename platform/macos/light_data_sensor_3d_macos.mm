@@ -253,8 +253,9 @@ void LightDataSensor3D::_metal_readback_loop() {
         // Read result
         float *result = (float *)[outBuf contents];
         if (result) {
-            last_color = Color(result[0], result[1], result[2], result[3]);
-            has_new_color = true;
+            current_color = Color(result[0], result[1], result[2], result[3]);
+            current_light_level = 0.299f * result[0] + 0.587f * result[1] + 0.114f * result[2];
+            has_new_readings = true;
         }
     }
 }

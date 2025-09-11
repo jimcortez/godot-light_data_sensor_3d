@@ -92,7 +92,7 @@ g++ -shared \
     light_data_sensor_3d.o \
     light_data_sensor_3d_macos.o \
     -L"$GODOT_CPP_DIR/bin" \
-    -lgodot-cpp.macos.template_debug \
+    -lgodot-cpp.macos.template_debug.universal \
     -framework Metal \
     -framework Foundation \
     -o liblight_data_sensor_batch.macos.template_debug.dylib

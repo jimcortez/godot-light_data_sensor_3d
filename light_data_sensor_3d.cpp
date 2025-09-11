@@ -15,14 +15,20 @@
 using namespace godot;
 
 void LightDataSensor3D::_bind_methods() {
-    // Properties
+    // Properties matching nanodeath LightSensor3D API
+    ClassDB::bind_method(D_METHOD("get_color"), &LightDataSensor3D::get_color);
+    ClassDB::bind_method(D_METHOD("get_light_level"), &LightDataSensor3D::get_light_level);
+    ADD_PROPERTY(PropertyInfo(Variant::COLOR, "color"), "", "get_color");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "light_level"), "", "get_light_level");
+
+    // Legacy properties (kept for compatibility)
     ClassDB::bind_method(D_METHOD("set_metadata_label", "label"), &LightDataSensor3D::set_metadata_label);
     ClassDB::bind_method(D_METHOD("get_metadata_label"), &LightDataSensor3D::get_metadata_label);
-    // ADD_PROPERTY(PropertyInfo(Variant::STRING, "metadata_label"), "set_metadata_label", "get_metadata_label");
 
-    // Methods
-    ClassDB::bind_method(D_METHOD("get_light_data"), &LightDataSensor3D::get_light_data);
-    ClassDB::bind_method(D_METHOD("force_sample"), &LightDataSensor3D::force_sample);
+    // Main API method
+    ClassDB::bind_method(D_METHOD("refresh"), &LightDataSensor3D::refresh);
+    
+    // Utility methods
     ClassDB::bind_method(D_METHOD("is_using_gpu"), &LightDataSensor3D::is_using_gpu);
     ClassDB::bind_method(D_METHOD("set_screen_sample_pos", "screen_pos"), &LightDataSensor3D::set_screen_sample_pos);
     ClassDB::bind_method(D_METHOD("get_screen_sample_pos"), &LightDataSensor3D::get_screen_sample_pos);
@@ -32,13 +38,15 @@ void LightDataSensor3D::_bind_methods() {
     ClassDB::bind_method(D_METHOD("stop"), &LightDataSensor3D::stop);
     ClassDB::bind_method(D_METHOD("set_poll_hz", "hz"), &LightDataSensor3D::set_poll_hz);
 
-    // Signal when new data is available (M3)
-    ADD_SIGNAL(MethodInfo("data_updated", PropertyInfo(Variant::COLOR, "color")));
+    // Signals matching nanodeath LightSensor3D API
+    ADD_SIGNAL(MethodInfo("color_updated", PropertyInfo(Variant::COLOR, "color")));
+    ADD_SIGNAL(MethodInfo("light_level_updated", PropertyInfo(Variant::FLOAT, "luminance")));
 }
 
 LightDataSensor3D::LightDataSensor3D() {
     is_running = false;
-    has_new_color = false;
+    has_new_readings = false;
+    current_light_level = 0.0f;
 #ifdef _WIN32
     fence_value = 0;
     fence_event = nullptr;
@@ -80,9 +88,10 @@ void LightDataSensor3D::_process(double p_delta) {
     }
     time_since_last_sample += p_delta;
     if (time_since_last_sample < poll_interval_seconds) {
-        // If worker thread updated a new color, emit signal without sampling
-        if (has_new_color.exchange(false)) {
-            emit_signal("data_updated", last_color);
+        // If worker thread updated new readings, emit signals without sampling
+        if (has_new_readings.exchange(false)) {
+            emit_signal("color_updated", current_color);
+            emit_signal("light_level_updated", current_light_level);
         }
         return;
     }
@@ -90,8 +99,9 @@ void LightDataSensor3D::_process(double p_delta) {
 #if defined(__APPLE__)
     if (use_metal) {
         _capture_center_region_for_gpu();
-        if (has_new_color.exchange(false)) {
-            emit_signal("data_updated", last_color);
+        if (has_new_readings.exchange(false)) {
+            emit_signal("color_updated", current_color);
+            emit_signal("light_level_updated", current_light_level);
         }
         return;
     }
@@ -99,15 +109,17 @@ void LightDataSensor3D::_process(double p_delta) {
     // On Windows, use GPU path if D3D12 is available, otherwise fallback to CPU
     if (d3d_device != nullptr) {
         _capture_center_region_for_gpu();
-        if (has_new_color.exchange(false)) {
-            emit_signal("data_updated", last_color);
+        if (has_new_readings.exchange(false)) {
+            emit_signal("color_updated", current_color);
+            emit_signal("light_level_updated", current_light_level);
         }
         return;
     }
 #endif
     _sample_viewport_color();
-    has_new_color = true;
-    emit_signal("data_updated", last_color);
+    has_new_readings = true;
+    emit_signal("color_updated", current_color);
+    emit_signal("light_level_updated", current_light_level);
 }
 
 void LightDataSensor3D::set_metadata_label(const String &p_label) {
@@ -118,14 +130,15 @@ String LightDataSensor3D::get_metadata_label() const {
     return metadata_label;
 }
 
-Dictionary LightDataSensor3D::get_light_data() const {
-    Dictionary data;
-    data["label"] = metadata_label;
-    data["color"] = last_color;
-    return data;
+Color LightDataSensor3D::get_color() const {
+    return current_color;
 }
 
-Dictionary LightDataSensor3D::force_sample() {
+float LightDataSensor3D::get_light_level() const {
+    return current_light_level;
+}
+
+void LightDataSensor3D::refresh() {
     // Force immediate sampling regardless of is_running state
     // This allows getting fresh data even when the sampling process is stopped
     
@@ -140,22 +153,21 @@ Dictionary LightDataSensor3D::force_sample() {
         // For GPU path, we need to wait for the readback to complete
         // This is a simplified approach - in a production system you might want
         // to implement a synchronous version of the GPU sampling
-        return get_light_data();
+        return;
     }
 #elif defined(_WIN32)
     if (d3d_device != nullptr) {
         _capture_center_region_for_gpu();
         // Similar to macOS - simplified approach for now
-        return get_light_data();
+        return;
     }
 #endif
     // Fall back to CPU sampling
     _sample_viewport_color();
     
-    Dictionary data;
-    data["label"] = metadata_label;
-    data["color"] = last_color;
-    return data;
+    // Emit signals for the new readings
+    emit_signal("color_updated", current_color);
+    emit_signal("light_level_updated", current_light_level);
 }
 
 bool LightDataSensor3D::is_using_gpu() const {
@@ -183,7 +195,7 @@ void LightDataSensor3D::start() {
         return;
     }
     is_running = true;
-    has_new_color = false;
+    has_new_readings = false;
     set_process(true);
 #ifdef __APPLE__
     _init_metal_compute();
@@ -271,7 +283,8 @@ void LightDataSensor3D::_sample_viewport_color() {
 
     if (sample_count > 0) {
         const double inv = 1.0 / static_cast<double>(sample_count);
-        last_color = Color(sum_r * inv, sum_g * inv, sum_b * inv, 1.0);
+        current_color = Color(sum_r * inv, sum_g * inv, sum_b * inv, 1.0);
+        current_light_level = _calculate_luminance(current_color);
     }
     // No image lock/unlock needed for CPU-side reads in this context.
 }
@@ -329,6 +342,12 @@ void LightDataSensor3D::_capture_center_region_for_gpu() {
         frame_ready = true;
     }
     frame_cv.notify_one();
+}
+
+float LightDataSensor3D::_calculate_luminance(const Color &color) const {
+    // Calculate luminance using the standard formula: 0.299*R + 0.587*G + 0.114*B
+    // This gives a value between 0 (dark) and 1 (bright)
+    return 0.299f * color.r + 0.587f * color.g + 0.114f * color.b;
 }
 
 // Windows D3D12 implementations are in light_data_sensor_3d_windows.cpp

@@ -73,10 +73,11 @@ private:
 	std::condition_variable frame_cv;
 	bool frame_ready = false;
 
-    // Last-read color
-    Color last_color;
-    // Whether a new color sample is ready to be signaled on the main thread
-    std::atomic_bool has_new_color;
+    // Current sensor readings
+    Color current_color;
+    float current_light_level;
+    // Whether new readings are ready to be signaled on the main thread
+    std::atomic_bool has_new_readings;
 
     // CPU sampling cadence (seconds) and accumulator for _process loop (M0)
     double poll_interval_seconds = 1.0 / 30.0; // ~30 Hz
@@ -104,13 +105,14 @@ public:
     void _process(double p_delta) override;
     void _exit_tree() override;
 
-    // Called to retrieve the color+label
-    Dictionary get_light_data() const;
+    // Properties matching nanodeath LightSensor3D API
+    Color get_color() const;
+    float get_light_level() const;
     
-    // Force immediate sampling and return fresh light data
+    // Main API method - updates sensor readings
     // WARNING: This method MUST be called from the main thread only!
     // Calling from background threads will cause crashes due to Godot API restrictions.
-    Dictionary force_sample();
+    void refresh();
 
     // Returns true if a GPU compute backend is active for this node (e.g., Metal on macOS)
     bool is_using_gpu() const;
@@ -129,6 +131,8 @@ private:
     void _sample_viewport_color();
     // Internal: capture a small center region and stage into frame_rgba32f for GPU/worker
     void _capture_center_region_for_gpu();
+    // Internal: calculate luminance from color (0=dark, 1=bright)
+    float _calculate_luminance(const Color &color) const;
 
 #ifdef _WIN32
     // Internal method to initialize PCIe BAR resources (unused in M0)
