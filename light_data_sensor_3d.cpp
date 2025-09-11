@@ -33,18 +33,12 @@ void LightDataSensor3D::_bind_methods() {
     ClassDB::bind_method(D_METHOD("set_screen_sample_pos", "screen_pos"), &LightDataSensor3D::set_screen_sample_pos);
     ClassDB::bind_method(D_METHOD("get_screen_sample_pos"), &LightDataSensor3D::get_screen_sample_pos);
 
-    // Lifecycle methods (M3)
-    ClassDB::bind_method(D_METHOD("start"), &LightDataSensor3D::start);
-    ClassDB::bind_method(D_METHOD("stop"), &LightDataSensor3D::stop);
-    ClassDB::bind_method(D_METHOD("set_poll_hz", "hz"), &LightDataSensor3D::set_poll_hz);
-
     // Signals matching nanodeath LightSensor3D API
     ADD_SIGNAL(MethodInfo("color_updated", PropertyInfo(Variant::COLOR, "color")));
     ADD_SIGNAL(MethodInfo("light_level_updated", PropertyInfo(Variant::FLOAT, "luminance")));
 }
 
 LightDataSensor3D::LightDataSensor3D() {
-    is_running = false;
     has_new_readings = false;
     current_light_level = 0.0f;
 #ifdef _WIN32
@@ -59,7 +53,10 @@ LightDataSensor3D::LightDataSensor3D() {
 
 LightDataSensor3D::~LightDataSensor3D() {
     // Ensure clean shutdown
-    stop();
+    frame_cv.notify_all();
+    if (readback_thread.joinable()) {
+        readback_thread.join();
+    }
 #ifdef _WIN32
     if (fence_event) {
         CloseHandle(fence_event);
@@ -73,54 +70,17 @@ LightDataSensor3D::~LightDataSensor3D() {
 }
 
 void LightDataSensor3D::_ready() {
-    // Auto-start by default (M3)
-    start();
+    // No auto-start - developers should call refresh() as needed
 }
 
 void LightDataSensor3D::_exit_tree() {
-    // Clean shutdown on tree exit (M3)
-    stop();
+    // Clean shutdown on tree exit
+    frame_cv.notify_all();
+    if (readback_thread.joinable()) {
+        readback_thread.join();
+    }
 }
 
-void LightDataSensor3D::_process(double p_delta) {
-    if (!is_running) {
-        return;
-    }
-    time_since_last_sample += p_delta;
-    if (time_since_last_sample < poll_interval_seconds) {
-        // If worker thread updated new readings, emit signals without sampling
-        if (has_new_readings.exchange(false)) {
-            emit_signal("color_updated", current_color);
-            emit_signal("light_level_updated", current_light_level);
-        }
-        return;
-    }
-    time_since_last_sample = 0.0;
-#if defined(__APPLE__)
-    if (use_metal) {
-        _capture_center_region_for_gpu();
-        if (has_new_readings.exchange(false)) {
-            emit_signal("color_updated", current_color);
-            emit_signal("light_level_updated", current_light_level);
-        }
-        return;
-    }
-#elif defined(_WIN32)
-    // On Windows, use GPU path if D3D12 is available, otherwise fallback to CPU
-    if (d3d_device != nullptr) {
-        _capture_center_region_for_gpu();
-        if (has_new_readings.exchange(false)) {
-            emit_signal("color_updated", current_color);
-            emit_signal("light_level_updated", current_light_level);
-        }
-        return;
-    }
-#endif
-    _sample_viewport_color();
-    has_new_readings = true;
-    emit_signal("color_updated", current_color);
-    emit_signal("light_level_updated", current_light_level);
-}
 
 void LightDataSensor3D::set_metadata_label(const String &p_label) {
     metadata_label = p_label;
@@ -189,56 +149,19 @@ Vector2 LightDataSensor3D::get_screen_sample_pos() const {
     return screen_sample_pos;
 }
 
-// Lifecycle control (M3)
-void LightDataSensor3D::start() {
-    if (is_running) {
-        return;
-    }
-    is_running = true;
-    has_new_readings = false;
-    set_process(true);
-#ifdef __APPLE__
-    _init_metal_compute();
-    if (use_metal) {
-        if (!readback_thread.joinable()) {
-            readback_thread = std::thread(&LightDataSensor3D::_metal_readback_loop, this);
-        }
-        return;
-    }
-#endif
-#ifdef _WIN32
-    _init_pcie_bar();
-    if (!readback_thread.joinable()) {
-        readback_thread = std::thread(&LightDataSensor3D::_readback_loop, this);
-    }
-#endif
-}
 
-void LightDataSensor3D::stop() {
-    if (!is_running) {
-        return;
-    }
-    is_running = false;
-    frame_cv.notify_all();
-    if (readback_thread.joinable()) {
-        readback_thread.join();
-    }
-    set_process(false);
-}
-
-void LightDataSensor3D::set_poll_hz(double p_hz) {
-    if (p_hz < 1.0) {
-        p_hz = 1.0;
-    }
-    if (p_hz > 240.0) {
-        p_hz = 240.0;
-    }
-    poll_interval_seconds = 1.0 / p_hz;
-}
 
 // --- Internal methods ---
 
 void LightDataSensor3D::_sample_viewport_color() {
+    // Frame skipping to reduce expensive get_image() calls
+    frame_skip_counter++;
+    if (frame_skip_counter < frame_skip_interval) {
+        // Skip this frame, use cached data if available
+        return;
+    }
+    frame_skip_counter = 0; // Reset counter
+    
     Viewport *vp = get_viewport();
     if (!vp) {
         return;
@@ -247,6 +170,8 @@ void LightDataSensor3D::_sample_viewport_color() {
     if (tex.is_null()) {
         return;
     }
+    
+    // PERFORMANCE WARNING: get_image() causes expensive CPU-GPU synchronization
     Ref<Image> img = tex->get_image();
     if (img.is_null()) {
         return;
@@ -290,6 +215,22 @@ void LightDataSensor3D::_sample_viewport_color() {
 }
 
 void LightDataSensor3D::_capture_center_region_for_gpu() {
+    // PERFORMANCE WARNING: This function is misnamed - it's actually doing CPU sampling with GPU processing
+    // For true GPU pipelines, we should work directly with ViewportTexture as a GPU resource
+    // However, Godot's current API doesn't provide direct GPU texture access without CPU sync
+    
+    // Frame skipping to reduce expensive get_image() calls
+    frame_skip_counter++;
+    if (frame_skip_counter < frame_skip_interval) {
+        // Skip this frame, use cached data if available
+        if (has_new_readings.exchange(false)) {
+            emit_signal("color_updated", current_color);
+            emit_signal("light_level_updated", current_light_level);
+        }
+        return;
+    }
+    frame_skip_counter = 0; // Reset counter
+    
     Viewport *vp = get_viewport();
     if (!vp) {
         return;
@@ -298,6 +239,9 @@ void LightDataSensor3D::_capture_center_region_for_gpu() {
     if (tex.is_null()) {
         return;
     }
+    
+    // PERFORMANCE WARNING: get_image() causes expensive CPU-GPU synchronization
+    // This should only be called when absolutely necessary and at reduced frequency
     Ref<Image> img = tex->get_image();
     if (img.is_null()) {
         return;

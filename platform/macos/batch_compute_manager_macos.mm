@@ -292,6 +292,9 @@ bool BatchComputeManager::_create_viewport_texture(Ref<ViewportTexture> viewport
             return false;
         }
         
+        // PERFORMANCE WARNING: get_image() causes expensive CPU-GPU synchronization
+        // This is a limitation of Godot's current API - there's no direct GPU texture access
+        // For true GPU pipelines, we would need to work with the texture RID directly
         // Get the image data from the ViewportTexture
         Ref<Image> img = viewport_texture->get_image();
         if (img.is_null()) {

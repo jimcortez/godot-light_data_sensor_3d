@@ -41,11 +41,9 @@ Inherits from `Node3D`
 
 | Method | Return Type | Description |
 |--------|-------------|-------------|
-| `get_light_data()` | Dictionary | Returns current light data: `{label: String, color: Color}` |
-| `force_sample()` | Dictionary | Force immediate sampling and return fresh light data (main thread only) |
-| `start()` | void | Begin sampling and background processing |
-| `stop()` | void | Stop sampling and background processing |
-| `set_poll_hz(hz: float)` | void | Set sampling rate (1.0-240.0 Hz) |
+| `get_color()` | Color | Returns current light color reading |
+| `get_light_level()` | float | Returns current light level (luminance 0.0-1.0) |
+| `refresh()` | void | Force immediate sampling and update readings (main thread only) |
 | `is_using_gpu()` | bool | Returns true if GPU compute backend is active |
 | `set_screen_sample_pos(pos: Vector2)` | void | Set screen-space sample position (pixels) |
 | `get_screen_sample_pos()` | Vector2 | Get current screen-space sample position |
@@ -54,7 +52,8 @@ Inherits from `Node3D`
 
 | Signal | Parameters | Description |
 |--------|------------|-------------|
-| `data_updated` | `color: Color` | Emitted when new light data is available |
+| `color_updated` | `color: Color` | Emitted when new light color is available |
+| `light_level_updated` | `luminance: float` | Emitted when new light level is available |
 
 #### Usage Example
 
@@ -66,26 +65,29 @@ extends Node3D
 func _ready():
     # Configure the sensor
     sensor.metadata_label = "Main Light Sensor"
-    sensor.set_poll_hz(30.0)  # 30 Hz sampling
     sensor.set_screen_sample_pos(Vector2(400, 300))  # Center of 800x600 viewport
     
-    # Connect to data updates
-    sensor.connect("data_updated", _on_light_data_updated)
-    
-    # Start sampling
-    sensor.start()
+    # Connect to signals
+    sensor.connect("color_updated", _on_color_updated)
+    sensor.connect("light_level_updated", _on_light_level_updated)
 
-func _on_light_data_updated(color: Color):
+func _process(delta):
+    # Call refresh() as needed - you control the sampling frequency
+    sensor.refresh()
+
+func _on_color_updated(color: Color):
     print("Light color: ", color)
+    # Update UI, trigger events, etc.
 
-# Force immediate sampling (main thread only!)
+func _on_light_level_updated(luminance: float):
+    print("Light level: ", luminance)
+    # Update brightness indicators, etc.
+
+# Get current readings
 func _on_button_pressed():
-    var fresh_data = sensor.force_sample()
-    print("Fresh light data: ", fresh_data)
-    
-    # Get full data including label
-    var data = sensor.get_light_data()
-    print("Sensor: ", data.label, " Color: ", data.color)
+    var color = sensor.get_color()
+    var level = sensor.get_light_level()
+    print("Current color: ", color, " Level: ", level)
 ```
 
 ## Build Instructions

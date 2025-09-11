@@ -68,7 +68,6 @@ private:
 
     // Threading
     std::thread readback_thread;
-    std::atomic_bool is_running;
 	std::mutex frame_mutex;
 	std::condition_variable frame_cv;
 	bool frame_ready = false;
@@ -79,9 +78,9 @@ private:
     // Whether new readings are ready to be signaled on the main thread
     std::atomic_bool has_new_readings;
 
-    // CPU sampling cadence (seconds) and accumulator for _process loop (M0)
-    double poll_interval_seconds = 1.0 / 30.0; // ~30 Hz
-    double time_since_last_sample = 0.0;
+    // Frame skipping to reduce expensive get_image() calls
+    int frame_skip_counter = 0;
+    int frame_skip_interval = 3; // Only call get_image() every 3rd frame
 
     // Frame region data provided by main thread to worker thread
     std::vector<float> frame_rgba32f;
@@ -121,10 +120,6 @@ public:
     void set_screen_sample_pos(const Vector2 &p_screen_pos);
     Vector2 get_screen_sample_pos() const;
 
-    // Lifecycle control (M3)
-    void start();
-    void stop();
-    void set_poll_hz(double p_hz);
 
 private:
     // Internal M0 CPU sampling helper
