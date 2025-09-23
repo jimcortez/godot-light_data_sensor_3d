@@ -11,6 +11,7 @@
 #include <vector>
 #include <mutex>
 #include <condition_variable>
+#include <chrono>
 
 #ifdef _WIN32
 #include <d3d12.h>
@@ -25,6 +26,10 @@ typedef void* MTLDeviceRef;
 typedef void* MTLCommandQueueRef;
 typedef void* MTLComputePipelineStateRef;
 typedef void* MTLBufferRef;
+#endif
+
+#ifdef __linux__
+// Linux platform declarations - currently CPU-only fallback
 #endif
 
 namespace godot {
@@ -66,6 +71,11 @@ private:
     bool use_metal = false;
 #endif
 
+#ifdef __linux__
+    // Linux platform members - currently CPU-only fallback
+    bool use_linux_gpu = false; // Reserved for future RenderingDevice implementation
+#endif
+
     // Threading
     std::thread readback_thread;
 	std::mutex frame_mutex;
@@ -77,10 +87,18 @@ private:
     float current_light_level;
     // Whether new readings are ready to be signaled on the main thread
     std::atomic_bool has_new_readings;
+    // Whether the readback thread should continue running
+    std::atomic_bool is_running{false};
 
     // Frame skipping to reduce expensive get_image() calls
     int frame_skip_counter = 0;
     int frame_skip_interval = 3; // Only call get_image() every 3rd frame
+    
+    // M6.5: Performance monitoring and optimization
+    bool use_direct_texture_access = false; // Enable direct GPU texture access
+    std::chrono::high_resolution_clock::time_point last_sample_time;
+    double average_sample_time = 0.0; // Average time per sample in milliseconds
+    int sample_count = 0; // Number of samples taken for averaging
 
     // Frame region data provided by main thread to worker thread
     std::vector<float> frame_rgba32f;
@@ -116,18 +134,43 @@ public:
     // Returns true if a GPU compute backend is active for this node (e.g., Metal on macOS)
     bool is_using_gpu() const;
 
+    // Get platform information and support status
+    String get_platform_info() const;
+    String get_support_status() const;
+
     // Set the screen-space sample position (pixels) where this sensor should sample.
     void set_screen_sample_pos(const Vector2 &p_screen_pos);
     Vector2 get_screen_sample_pos() const;
+    
+    // M6.5: Performance monitoring API
+    double get_average_sample_time() const;
+    void reset_performance_stats();
+    void set_use_direct_texture_access(bool enabled);
+    bool get_use_direct_texture_access() const;
 
 
 private:
+    // Platform-specific initialization
+    void _initialize_platform_compute();
+    
     // Internal M0 CPU sampling helper
     void _sample_viewport_color();
     // Internal: capture a small center region and stage into frame_rgba32f for GPU/worker
     void _capture_center_region_for_gpu();
     // Internal: calculate luminance from color (0=dark, 1=bright)
     float _calculate_luminance(const Color &color) const;
+    
+    // M6.5: GPU Performance Optimization methods
+    bool _is_gpu_mode_available() const;
+    void _sample_gpu_optimized();
+    void _sample_cpu_fallback();
+    void _capture_gpu_direct_texture();
+    
+    // M6.5: Performance monitoring methods
+    void _start_performance_timer();
+    void _end_performance_timer();
+    double _get_average_sample_time() const;
+    void _reset_performance_stats();
 
 #ifdef _WIN32
     // Internal method to initialize PCIe BAR resources (unused in M0)
@@ -146,6 +189,13 @@ private:
     void _metal_readback_loop();
     Color _read_pixel_from_mtl_buffer();
     void _cleanup_metal_objects();
+#endif
+
+#ifdef __linux__
+    // Platform-specific for Linux implementation (currently CPU-only fallback)
+    void _init_linux_compute();
+    void _linux_readback_loop();
+    Color _read_pixel_from_linux();
 #endif
 };
 

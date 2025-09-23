@@ -18,8 +18,11 @@ if env["platform"] == "macos":
     # Objective-C++ source and Metal shader are used on macOS
     sources.append("platform/macos/light_data_sensor_3d_macos.mm")
     sources.append("platform/macos/batch_compute_manager_macos.mm")
+    sources.append("platform/macos/metal_texture_access.mm")
 if env["platform"] == "windows":
     sources.append("platform/windows/light_data_sensor_3d_windows.cpp")
+if env["platform"] == "linux":
+    sources.append("platform/linux/light_data_sensor_3d_linux.cpp")
 
 # Output base directory
 out_dir = "bin"

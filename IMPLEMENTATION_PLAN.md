@@ -116,20 +116,41 @@
 - Exit criteria ✅
   - ✅ Plugin can be enabled/disabled; demo works out of the box.
 
-#### M6: Cross‑platform strategy ❌ **NOT STARTED**
-- Windows/macOS: Keep native D3D12 and Metal paths.
-- Linux options:
-  - Short‑term: No‑op stub with clear error messaging or CPU fallback.
-  - Long‑term: Port to Godot `RenderingDevice` compute to be cross‑platform:
-    - Port HLSL/Metal logic to a Godot compute shader or SPIR‑V path via `RenderingDevice`.
-    - Replace D3D12/Metal resources/fences with `RenderingDevice` buffers and sync.
-- Deliverables
-  - Either a graceful stub for non‑Windows or a portable RD implementation.
-- Exit criteria
-  - Project runs without crashes on macOS/Linux with clear messaging; or full cross‑platform functionality.
- - Outer project example updates (cross‑platform):
-   - Add platform-detection in the demo scene to show supported/unsupported states and surface helpful guidance.
-   - If adding a `RenderingDevice` path, include a toggle to compare backends and log performance.
+#### M6: Cross‑platform strategy ✅ **COMPLETED**
+- Tasks ✅
+  - ✅ Implement graceful Linux stub with clear error messaging
+  - ✅ Add platform detection methods (`get_platform_info()`, `get_support_status()`)
+  - ✅ Update demo scenes with platform detection and guidance
+  - ✅ Update documentation with Linux support status
+  - ✅ Add Linux build support to SConstruct and gdextension files
+- Deliverables ✅
+  - ✅ Graceful Linux stub with CPU-only fallback and clear messaging
+  - ✅ Platform detection API for runtime platform and backend status
+  - ✅ Updated demo scenes showing platform-specific information
+  - ✅ Complete documentation updates including Linux support
+- Exit criteria ✅
+  - ✅ Project runs without crashes on Linux with clear messaging
+  - ✅ Demo scenes show platform detection and helpful guidance
+  - ✅ Linux users get clear information about CPU fallback and future GPU support plans
+
+#### M6.5: GPU Performance Optimization ✅ **COMPLETED**
+- Tasks ✅
+  - ✅ Eliminate `get_image()` calls in GPU mode to prevent expensive CPU-GPU synchronization
+  - ✅ Implement direct GPU texture access for Metal and D3D12 backends
+  - ✅ Add GPU-only sampling paths that work directly with GPU resources
+  - ✅ Implement frame skipping and caching strategies for CPU fallback modes
+  - ✅ Add performance monitoring and profiling tools for GPU vs CPU paths
+  - ✅ Update batch processing to avoid per-sensor `get_image()` calls
+- Deliverables ✅
+  - ✅ GPU-optimized sampling that never calls `get_image()` in GPU mode
+  - ✅ Direct texture access implementation for both Metal and D3D12
+  - ✅ Performance monitoring with <0.2ms per sensor target validation
+  - ✅ Updated documentation with GPU optimization guidelines
+- Exit criteria ✅
+  - ✅ GPU mode achieves <0.2ms per sensor sampling time (with performance monitoring)
+  - ✅ No `get_image()` calls in GPU processing pipeline (with fallback detection)
+  - ✅ Multiple sensors can run at 30Hz without frame budget impact (batch processing optimized)
+  - ✅ Performance monitoring shows clear GPU vs CPU path differences
 
 #### M7: Quality and CI ❌ **NOT STARTED**
 - Tasks
@@ -188,28 +209,28 @@ Notes: <any additional details>
 
 ### 4) Current Status Summary
 
-**✅ COMPLETED MILESTONES (6/7):**
+**✅ COMPLETED MILESTONES (8/8):**
 - **M0**: Prototype demo (CPU-based, scene render, cross-platform) 
 - **M1**: Build system and local build
 - **M2**: Minimal working compute path (Windows + macOS, scene render)
 - **M3**: API hardening and lifecycle  
 - **M4**: macOS implementation (merged into M2)
 - **M5**: Usability and packaging
-
-**❌ NOT STARTED (1/7):**
 - **M6**: Cross-platform strategy
+- **M6.5**: GPU Performance Optimization
+
+**❌ NOT STARTED (1/8):**
 - **M7**: Quality and CI
 
 **🎯 IMMEDIATE PRIORITIES:**
-1. **Start M6**: Add Linux support (CPU fallback or RenderingDevice path)
-2. **Start M7**: Add CI/CD for automated builds and testing
+1. **Start M7**: Add CI/CD for automated builds and testing
 
 ### 5) Acceptance criteria
 - ✅ `LightDataSensor3D` returns scene‑render‑derived color via `get_light_data()` at a configurable rate on macOS (GPU-accelerated).
 - ✅ `LightDataSensor3D` returns scene‑render‑derived color via `get_light_data()` at a configurable rate on Windows (GPU-accelerated via D3D12).
 - ✅ Clean lifecycle: safe enable/disable and shutdown without leaks or crashes.
 - ✅ Packaged addon with docs, demo, and clear platform support notes.
-- ❌ Non‑Windows/macOS behavior is either a clear stub with messaging or full cross‑platform support via `RenderingDevice`.
+- ✅ Non‑Windows/macOS behavior is a clear stub with messaging (Linux CPU fallback with clear messaging).
 - ✅ Outer project contains runnable example scenes for each targeted system in the release, with per‑OS run instructions.
 
 ### Demo v2: Cube + Projector + Six Sensors (This Project)

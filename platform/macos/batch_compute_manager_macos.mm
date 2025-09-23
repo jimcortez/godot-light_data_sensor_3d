@@ -9,6 +9,15 @@
 
 using namespace godot;
 
+// Forward declarations for MetalTextureAccess functions
+namespace MetalTextureAccess {
+    id<MTLTexture> getMetalTextureFromViewportTexture(Ref<ViewportTexture> viewport_texture);
+    id<MTLTexture> createMetalTextureFromImage(id<MTLDevice> device, Ref<Image> image);
+    id<MTLTexture> createOptimizedMetalTextureFromViewport(id<MTLDevice> device, Ref<ViewportTexture> viewport_texture);
+    bool isDirectTextureAccessAvailable();
+    void logTextureAccessMethod(bool using_direct_access);
+}
+
 // Global shared Metal resources for batch compute
 static bool g_batch_metal_initialized = false;
 static id<MTLDevice> g_batch_shared_device = nil;
@@ -194,7 +203,21 @@ namespace BatchMetalResourceManager {
 
 // Implementation of BatchComputeManager Metal methods
 bool BatchComputeManager::_init_metal_device() {
-    return BatchMetalResourceManager::initialize();
+    bool success = BatchMetalResourceManager::initialize();
+    
+    if (!success && force_gpu_mode) {
+        UtilityFunctions::print("[BatchComputeManager] ERROR: Force GPU mode enabled but Metal initialization failed!");
+        UtilityFunctions::push_error("GPU acceleration required but Metal initialization failed. Please check your graphics drivers and restart the application.");
+        return false;
+    }
+    
+    if (success) {
+        UtilityFunctions::print("[BatchComputeManager] Metal device initialized successfully");
+    } else {
+        UtilityFunctions::print("[BatchComputeManager] Metal initialization failed, falling back to CPU");
+    }
+    
+    return success;
 }
 
 bool BatchComputeManager::_create_compute_pipelines() {
@@ -286,77 +309,68 @@ void BatchComputeManager::_cleanup_metal_resources() {
 }
 
 bool BatchComputeManager::_create_viewport_texture(Ref<ViewportTexture> viewport_texture) {
-    if (viewport_texture.is_valid()) {
-        id<MTLDevice> device = BatchMetalResourceManager::getDevice();
-        if (!device) {
-            return false;
+    if (!viewport_texture.is_valid()) {
+        return false;
+    }
+    
+    // M6.5: Enhanced GPU optimization strategy
+    // 1. Try direct texture access first (if enabled)
+    // 2. Use optimized fallback that minimizes CPU-GPU sync
+    // 3. Implement proper performance monitoring
+    
+    if (use_direct_texture_access) {
+        if (_create_direct_texture_access(viewport_texture)) {
+            return true;
         }
-        
-        // PERFORMANCE WARNING: get_image() causes expensive CPU-GPU synchronization
-        // This is a limitation of Godot's current API - there's no direct GPU texture access
-        // For true GPU pipelines, we would need to work with the texture RID directly
-        // Get the image data from the ViewportTexture
-        Ref<Image> img = viewport_texture->get_image();
-        if (img.is_null()) {
-            return false;
-        }
-        
-        int width = img->get_width();
-        int height = img->get_height();
-        
-        if (width <= 0 || height <= 0) {
-            return false;
-        }
-        
-        // Create Metal texture descriptor
-        MTLTextureDescriptor* texture_desc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
-                                                                                                 width:width
-                                                                                                height:height
-                                                                                             mipmapped:NO];
-        texture_desc.usage = MTLTextureUsageShaderRead;
-        
-        id<MTLTexture> metal_texture = [device newTextureWithDescriptor:texture_desc];
-        if (!metal_texture) {
-            return false;
-        }
-        
-        // Convert Godot Image to Metal texture data
-        // Godot uses RGBA8 format, which matches MTLPixelFormatRGBA8Unorm
-        uint8_t* pixel_data = (uint8_t*)malloc(width * height * 4);
-        if (!pixel_data) {
-            return false;
-        }
-        
-        // Copy pixel data from Godot Image to our buffer
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                Color pixel = img->get_pixel(x, y);
-                int index = (y * width + x) * 4;
-                pixel_data[index + 0] = (uint8_t)(pixel.r * 255.0f); // Red
-                pixel_data[index + 1] = (uint8_t)(pixel.g * 255.0f); // Green
-                pixel_data[index + 2] = (uint8_t)(pixel.b * 255.0f); // Blue
-                pixel_data[index + 3] = (uint8_t)(pixel.a * 255.0f); // Alpha
-            }
-        }
-        
-        // Copy the image data to the Metal texture
-        [metal_texture replaceRegion:MTLRegionMake2D(0, 0, width, height)
-                          mipmapLevel:0
-                            withBytes:pixel_data
-                          bytesPerRow:width * 4]; // 4 bytes per pixel (RGBA)
-        
-        std::free(pixel_data);
-        
+        // If direct access fails, fall back to the optimized method
+        // Note: This is normal behavior - direct GPU access isn't always available
+    }
+    
+    return _create_viewport_texture_fallback(viewport_texture);
+}
+
+bool BatchComputeManager::_create_direct_texture_access(Ref<ViewportTexture> viewport_texture) {
+    // Phase 1: Attempt to get Metal texture directly from ViewportTexture
+    id<MTLTexture> metal_texture = MetalTextureAccess::getMetalTextureFromViewportTexture(viewport_texture);
+    
+    if (metal_texture) {
         // Store the Metal texture
         if (this->viewport_texture) {
             [(id)this->viewport_texture release];
         }
         this->viewport_texture = (void*)metal_texture;
         
+        MetalTextureAccess::logTextureAccessMethod(true);
         return true;
-    } else {
+    }
+    
+    return false;
+}
+
+bool BatchComputeManager::_create_viewport_texture_fallback(Ref<ViewportTexture> viewport_texture) {
+    id<MTLDevice> device = BatchMetalResourceManager::getDevice();
+    if (!device) {
         return false;
     }
+    
+    // M6.5: Use optimized fallback method that minimizes CPU-GPU synchronization
+    // This method implements several optimizations to reduce the performance impact
+    // of the necessary get_image() call in the fallback path
+    
+    // Use the optimized MetalTextureAccess utility
+    id<MTLTexture> metal_texture = MetalTextureAccess::createOptimizedMetalTextureFromViewport(device, viewport_texture);
+    if (!metal_texture) {
+        return false;
+    }
+    
+    // Store the Metal texture
+    if (this->viewport_texture) {
+        [(id)this->viewport_texture release];
+    }
+    this->viewport_texture = (void*)metal_texture;
+    
+    MetalTextureAccess::logTextureAccessMethod(false);
+    return true;
 }
 
 bool BatchComputeManager::_update_sensor_regions_buffer() {
@@ -483,5 +497,6 @@ bool BatchComputeManager::_read_results() {
     
     return true;
 }
+
 
 #endif // __APPLE__

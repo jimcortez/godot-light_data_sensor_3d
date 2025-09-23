@@ -9,3 +9,5 @@ windows.debug.x86_64="res://addons/light_data_sensor_3d/bin/liblight_data_sensor
 windows.release.x86_64="res://addons/light_data_sensor_3d/bin/liblight_data_sensor.windows.template_release.x86_64.dll"
 windows.debug.arm64="res://addons/light_data_sensor_3d/bin/liblight_data_sensor.windows.template_debug.arm64.dll"
 windows.release.arm64="res://addons/light_data_sensor_3d/bin/liblight_data_sensor.windows.template_release.arm64.dll"
+linux.debug.x86_64="res://addons/light_data_sensor_3d/bin/liblight_data_sensor.linux.template_debug.x86_64.so"
+linux.release.x86_64="res://addons/light_data_sensor_3d/bin/liblight_data_sensor.linux.template_release.x86_64.so"

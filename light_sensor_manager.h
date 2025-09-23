@@ -114,6 +114,11 @@ public:
     bool get_auto_update_screen_positions() const;
     void set_use_gpu_acceleration(bool enabled);
     bool get_use_gpu_acceleration() const;
+    void set_use_direct_texture_access(bool enabled);
+    bool get_use_direct_texture_access() const;
+    
+    void set_force_gpu_mode(bool force_gpu);
+    bool get_force_gpu_mode() const;
     
     // Control
     void start_sampling();

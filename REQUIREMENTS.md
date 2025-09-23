@@ -64,8 +64,13 @@ Purpose: Machine-readable requirements for the `LightDataSensor3D` addon. For ro
 - NFR-005 Error handling (Status: 🔄 **Partially Current**, Plan: M2/M3)
   - ✅ Clear logging for failures (device creation, shader compile, dispatch, mapping); safe defaults.
   - ❌ Device lost scenarios and advanced error recovery not fully implemented.
- - NFR-006 Scalability (Status: ✅ **Current**, Plan: M3/M5)
+- NFR-006 Scalability (Status: ✅ **Current**, Plan: M3/M5)
   - ✅ Support thousands of `LightDataSensor3D` nodes in a single project with negligible impact on overall frame time (target: ≤5% increase versus baseline scene at default 30 Hz sampling on a mid‑range GPU/CPU). Allow batching/shared GPU resources where applicable.
+- NFR-007 GPU Performance Optimization (Status: ❌ **Not Implemented**, Plan: M6.5)
+  - ❌ GPU mode must never call `get_image()` to avoid expensive CPU-GPU synchronization (target: <0.2ms per sensor).
+  - ❌ Direct GPU texture access for Metal and D3D12 backends without CPU readback.
+  - ❌ Frame skipping and caching strategies for CPU fallback modes.
+  - ❌ Performance monitoring and profiling tools for GPU vs CPU path comparison.
 
 ## Examples and Demos (Outer Project)
 - XR-001 Windows demo (Status: ✅ **Current**, Plan: M2)
@@ -86,6 +91,10 @@ Purpose: Machine-readable requirements for the `LightDataSensor3D` addon. For ro
   - ❌ Automated script validates `get_light_data()` returns expected color from a controlled scene (e.g., solid-color quad) within a timeout.
 - TR-003 Release artifacts (Status: ❌ **Not Implemented**, Plan: M7)
   - ❌ CI builds and publishes per-OS binaries on tagged releases; include checksums.
+- TR-004 GPU Performance Testing (Status: ❌ **Not Implemented**, Plan: M6.5)
+  - ❌ Automated performance benchmarks measuring <0.2ms per sensor in GPU mode.
+  - ❌ Validation that no `get_image()` calls occur in GPU processing pipeline.
+  - ❌ Multi-sensor stress tests at 30Hz without frame budget impact.
 
 ## Dependencies
 - Godot 4.x matching `godot-cpp` version.
@@ -115,5 +124,6 @@ Purpose: Machine-readable requirements for the `LightDataSensor3D` addon. For ro
 - **M3 ✅** -> FR-003, FR-004, NFR-001, NFR-002, NFR-003, XR-002
 - **M4 ✅** -> PR-002, XR-003 (merged into M2)
 - **M5 ✅** -> BR-003, BR-004, XR-004, FR-005
-- **M6 ❌** -> PR-003, XR-005
+- **M6 ✅** -> PR-003, XR-005
+- **M6.5 ❌** -> NFR-007, TR-004
 - **M7 ❌** -> TR-001, TR-002, TR-003

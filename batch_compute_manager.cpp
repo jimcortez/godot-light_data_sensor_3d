@@ -6,6 +6,7 @@
 #include <godot_cpp/classes/texture2d.hpp>
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
+#include <chrono>
 
 // Metal implementation is in platform/macos/batch_compute_manager_macos.mm
 
@@ -32,6 +33,10 @@ void BatchComputeManager::_bind_methods() {
     ClassDB::bind_method(D_METHOD("set_max_sensors", "max_count"), &BatchComputeManager::set_max_sensors);
     ClassDB::bind_method(D_METHOD("set_use_optimized_kernel", "use_optimized"), &BatchComputeManager::set_use_optimized_kernel);
     ClassDB::bind_method(D_METHOD("set_sensors_per_thread", "count"), &BatchComputeManager::set_sensors_per_thread);
+    ClassDB::bind_method(D_METHOD("set_use_direct_texture_access", "use_direct"), &BatchComputeManager::set_use_direct_texture_access);
+    ClassDB::bind_method(D_METHOD("get_use_direct_texture_access"), &BatchComputeManager::get_use_direct_texture_access);
+    ClassDB::bind_method(D_METHOD("set_force_gpu_mode", "force_gpu"), &BatchComputeManager::set_force_gpu_mode);
+    ClassDB::bind_method(D_METHOD("get_force_gpu_mode"), &BatchComputeManager::get_force_gpu_mode);
     
     // Statistics
     ClassDB::bind_method(D_METHOD("get_sensor_count"), &BatchComputeManager::get_sensor_count);
@@ -162,6 +167,9 @@ bool BatchComputeManager::process_sensors(Ref<ViewportTexture> viewport_texture)
         return false;
     }
     
+    // M6.5: Start performance timing for batch processing
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
     is_processing.store(true);
     
 #ifdef __APPLE__
@@ -185,6 +193,16 @@ bool BatchComputeManager::process_sensors(Ref<ViewportTexture> viewport_texture)
         return false;
     }
 #endif
+    
+    // M6.5: End performance timing and log results
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+    double processing_time_ms = duration.count() / 1000.0;
+    
+    // Log performance warnings if batch processing is too slow
+    if (processing_time_ms > 0.2) { // Target: <0.2ms per sensor
+        UtilityFunctions::print("[BatchComputeManager] Performance Warning: Batch processing time ", processing_time_ms, "ms exceeds target of 0.2ms per sensor");
+    }
     
     is_processing.store(false);
     return true;
@@ -222,6 +240,22 @@ void BatchComputeManager::set_use_optimized_kernel(bool use_optimized) {
 
 void BatchComputeManager::set_sensors_per_thread(int count) {
     sensors_per_thread = Math::max(1, Math::min(count, 16)); // Clamp between 1 and 16
+}
+
+void BatchComputeManager::set_use_direct_texture_access(bool use_direct) {
+    use_direct_texture_access = use_direct;
+}
+
+bool BatchComputeManager::get_use_direct_texture_access() const {
+    return use_direct_texture_access;
+}
+
+void BatchComputeManager::set_force_gpu_mode(bool force_gpu) {
+    force_gpu_mode = force_gpu;
+}
+
+bool BatchComputeManager::get_force_gpu_mode() const {
+    return force_gpu_mode;
 }
 
 int BatchComputeManager::get_sensor_count() const {

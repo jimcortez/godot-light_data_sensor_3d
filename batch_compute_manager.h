@@ -69,6 +69,11 @@ private:
     int sample_radius = 4;
     bool use_optimized_kernel = false;
     int sensors_per_thread = 4;
+public:
+    bool use_direct_texture_access = true; // Phase 1: Enable direct texture access attempt
+    bool force_gpu_mode = false; // If true, throw exception if GPU is not available
+
+private:
     
     // State
     std::atomic<bool> is_initialized{false};
@@ -105,6 +110,11 @@ public:
     void set_max_sensors(int max_count);
     void set_use_optimized_kernel(bool use_optimized);
     void set_sensors_per_thread(int count);
+    void set_use_direct_texture_access(bool use_direct);
+    bool get_use_direct_texture_access() const;
+    
+    void set_force_gpu_mode(bool force_gpu);
+    bool get_force_gpu_mode() const;
     
     // Statistics
     int get_sensor_count() const;
@@ -121,6 +131,8 @@ private:
     
     // Metal processing
     bool _create_viewport_texture(Ref<ViewportTexture> viewport_texture);
+    bool _create_direct_texture_access(Ref<ViewportTexture> viewport_texture);
+    bool _create_viewport_texture_fallback(Ref<ViewportTexture> viewport_texture);
     bool _update_sensor_regions_buffer();
     bool _dispatch_compute_kernel();
     bool _read_results();

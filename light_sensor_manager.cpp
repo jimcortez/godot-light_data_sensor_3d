@@ -42,6 +42,10 @@ void LightSensorManager::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_auto_update_screen_positions"), &LightSensorManager::get_auto_update_screen_positions);
     ClassDB::bind_method(D_METHOD("set_use_gpu_acceleration", "enabled"), &LightSensorManager::set_use_gpu_acceleration);
     ClassDB::bind_method(D_METHOD("get_use_gpu_acceleration"), &LightSensorManager::get_use_gpu_acceleration);
+    ClassDB::bind_method(D_METHOD("set_use_direct_texture_access", "enabled"), &LightSensorManager::set_use_direct_texture_access);
+    ClassDB::bind_method(D_METHOD("get_use_direct_texture_access"), &LightSensorManager::get_use_direct_texture_access);
+    ClassDB::bind_method(D_METHOD("set_force_gpu_mode", "force_gpu"), &LightSensorManager::set_force_gpu_mode);
+    ClassDB::bind_method(D_METHOD("get_force_gpu_mode"), &LightSensorManager::get_force_gpu_mode);
     
     // Control
     ClassDB::bind_method(D_METHOD("start_sampling"), &LightSensorManager::start_sampling);
@@ -345,6 +349,32 @@ void LightSensorManager::set_use_gpu_acceleration(bool enabled) {
 
 bool LightSensorManager::get_use_gpu_acceleration() const {
     return use_gpu_acceleration;
+}
+
+void LightSensorManager::set_use_direct_texture_access(bool enabled) {
+    if (batch_compute_manager) {
+        batch_compute_manager->set_use_direct_texture_access(enabled);
+    }
+}
+
+bool LightSensorManager::get_use_direct_texture_access() const {
+    if (batch_compute_manager) {
+        return batch_compute_manager->use_direct_texture_access;
+    }
+    return false;
+}
+
+void LightSensorManager::set_force_gpu_mode(bool force_gpu) {
+    if (batch_compute_manager) {
+        batch_compute_manager->set_force_gpu_mode(force_gpu);
+    }
+}
+
+bool LightSensorManager::get_force_gpu_mode() const {
+    if (batch_compute_manager) {
+        return batch_compute_manager->get_force_gpu_mode();
+    }
+    return false;
 }
 
 void LightSensorManager::start_sampling() {
