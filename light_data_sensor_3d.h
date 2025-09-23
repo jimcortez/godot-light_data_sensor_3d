@@ -5,6 +5,7 @@
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/godot.hpp>
 #include <godot_cpp/classes/image.hpp>
+#include <godot_cpp/classes/viewport_texture.hpp>
 
 #include <string>
 #include <thread>
@@ -166,7 +167,11 @@ private:
     bool _is_gpu_mode_available() const;
     void _sample_gpu_optimized();
     void _sample_cpu_fallback();
-    void _capture_gpu_direct_texture();
+    bool _capture_gpu_direct_texture();
+    
+    // M6.5: Platform-specific direct GPU texture access methods
+    bool _capture_metal_direct_texture(Ref<ViewportTexture> tex);
+    bool _capture_d3d12_direct_texture(Ref<ViewportTexture> tex);
     
     // M6.5: Hybrid optimization strategy methods
     bool _capture_cached_texture();
@@ -196,6 +201,7 @@ private:
     void _metal_readback_loop();
     Color _read_pixel_from_mtl_buffer();
     void _cleanup_metal_objects();
+    bool _process_metal_texture_direct(void* device, void* queue, void* pipeline, void* outBuf, void* metal_texture);
 #endif
 
 #ifdef __linux__

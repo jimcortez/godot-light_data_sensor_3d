@@ -12,6 +12,9 @@ using namespace godot;
 // Metal Texture Access Utilities for Phase 1 Implementation
 namespace MetalTextureAccess {
     
+    // Forward declarations
+    id<MTLTexture> createMetalTextureFromImage(id<MTLDevice> device, Ref<Image> image);
+    
     // Attempt to get Metal texture from ViewportTexture RID
     // M6.5: Enhanced implementation for direct GPU texture access
     id<MTLTexture> getMetalTextureFromViewportTexture(Ref<ViewportTexture> viewport_texture) {
@@ -24,7 +27,7 @@ namespace MetalTextureAccess {
         
         // Get the texture RID from the ViewportTexture
         RID texture_rid = viewport_texture->get_rid();
-        if (texture_rid.is_null()) {
+        if (!texture_rid.is_valid()) {
             return nil;
         }
         

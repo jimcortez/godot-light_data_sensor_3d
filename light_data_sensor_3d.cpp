@@ -8,6 +8,13 @@
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 
+#ifdef __APPLE__
+// Forward declaration for MetalResourceManager
+namespace MetalResourceManager {
+    bool isAvailable();
+}
+#endif
+
 // For demonstration, minimal error checking
 #include <chrono>
 #include <thread>
@@ -338,35 +345,6 @@ void LightDataSensor3D::_capture_center_region_for_gpu() {
     _capture_fallback_optimized();
 }
 
-bool LightDataSensor3D::_capture_gpu_direct_texture() {
-    // M6.5: Direct GPU texture access implementation
-    // This method attempts to work directly with GPU textures without CPU-GPU synchronization
-    
-    // Start performance timing
-    _start_performance_timer();
-    
-    Viewport *vp = get_viewport();
-    if (!vp) {
-        _end_performance_timer();
-        return false;
-    }
-    Ref<ViewportTexture> tex = vp->get_texture();
-    if (tex.is_null()) {
-        _end_performance_timer();
-        return false;
-    }
-    
-    // M6.5: Attempt direct GPU texture access
-    // This would require:
-    // 1. Get the GPU texture directly from the ViewportTexture
-    // 2. Use GPU compute shaders to sample the texture
-    // 3. Avoid any CPU-GPU synchronization
-    
-    // For now, we'll fall back to the optimized CPU method
-    // In future phases, this will implement true direct GPU access
-    _end_performance_timer();
-    return false; // Indicate that direct access is not yet implemented
-}
 
 bool LightDataSensor3D::_capture_cached_texture() {
     // M6.5: Intelligent texture caching strategy
@@ -505,7 +483,7 @@ bool LightDataSensor3D::_is_gpu_mode_available() const {
     // M6.5: Check if GPU compute backend is available and active
     // This determines whether we can use GPU-optimized sampling
 #ifdef __APPLE__
-    return use_metal && mtl_device != nullptr;
+    return use_metal && MetalResourceManager::isAvailable();
 #elif defined(_WIN32)
     return d3d_device != nullptr;
 #elif defined(__linux__)
@@ -616,28 +594,59 @@ void LightDataSensor3D::_sample_cpu_fallback() {
     // No image lock/unlock needed for CPU-side reads in this context.
 }
 
-void LightDataSensor3D::_capture_gpu_direct_texture() {
+bool LightDataSensor3D::_capture_gpu_direct_texture() {
     // M6.5: Direct GPU texture access implementation
     // This method attempts to work directly with GPU textures without CPU-GPU synchronization
     
+    // Start performance timing
+    _start_performance_timer();
+    
     Viewport *vp = get_viewport();
     if (!vp) {
-        return;
+        _end_performance_timer();
+        return false;
     }
     Ref<ViewportTexture> tex = vp->get_texture();
     if (tex.is_null()) {
-        return;
+        _end_performance_timer();
+        return false;
     }
     
-    // M6.5: Attempt direct GPU texture access
-    // This is a placeholder for the actual implementation that would:
-    // 1. Get the GPU texture directly from the ViewportTexture
-    // 2. Use GPU compute shaders to sample the texture
-    // 3. Avoid any CPU-GPU synchronization
+    // M6.5: Platform-specific direct GPU texture access implementation
+    // This method implements true direct GPU access when available, avoiding CPU-GPU synchronization
     
-    // For now, we'll fall back to the optimized CPU method
-    // In future phases, this will implement true direct GPU access
+#ifdef __APPLE__
+    // macOS Metal direct texture access
+    if (use_metal && MetalResourceManager::isAvailable()) {
+        // Use Metal compute shaders to sample the texture directly on GPU
+        // This avoids the expensive get_image() call and CPU-GPU synchronization
+        if (_capture_metal_direct_texture(tex)) {
+            _end_performance_timer();
+            return true; // Success with direct Metal access
+        }
+    }
+#elif defined(_WIN32)
+    // Windows D3D12 direct texture access
+    if (d3d_device != nullptr) {
+        // Use D3D12 compute shaders to sample the texture directly on GPU
+        if (_capture_d3d12_direct_texture(tex)) {
+            _end_performance_timer();
+            return; // Success with direct D3D12 access
+        }
+    }
+#elif defined(__linux__)
+    // Linux direct texture access (future implementation)
+    if (use_linux_gpu) {
+        // Future: Use Vulkan or OpenGL compute shaders for direct GPU access
+        // Currently not implemented - falls back to CPU
+    }
+#endif
+    
+    // If direct GPU access is not available or fails, fall back to optimized CPU method
+    // This ensures we always get results, even if not optimal
     _sample_cpu_fallback();
+    _end_performance_timer();
+    return false; // Indicate that direct GPU access was not successful
 }
 
 bool LightDataSensor3D::_process_cached_image(Ref<Image> img) {
@@ -695,6 +704,27 @@ bool LightDataSensor3D::_process_cached_image(Ref<Image> img) {
     frame_cv.notify_one();
     
     return true;
+}
+
+// M6.5: Platform-specific direct GPU texture access implementations
+
+bool LightDataSensor3D::_capture_d3d12_direct_texture(Ref<ViewportTexture> tex) {
+    // M6.5: Windows D3D12 direct texture access implementation
+    // This method attempts to work directly with D3D12 textures without CPU-GPU synchronization
+    
+    // Start performance timing
+    _start_performance_timer();
+    
+    // TODO: Implement actual D3D12 direct texture access
+    // This would require:
+    // 1. Getting the D3D12 texture from the ViewportTexture RID
+    // 2. Using D3D12 compute shaders to sample the texture directly
+    // 3. Avoiding CPU-GPU synchronization
+    
+    // For now, this is a placeholder that falls back to CPU
+    // In future phases, this will implement true D3D12 direct access
+    _end_performance_timer();
+    return false; // Indicate that direct D3D12 access is not yet implemented
 }
 
 // M6.5: Performance monitoring methods
