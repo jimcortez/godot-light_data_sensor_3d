@@ -4,6 +4,7 @@
 #include <godot_cpp/classes/node3d.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/godot.hpp>
+#include <godot_cpp/classes/image.hpp>
 
 #include <string>
 #include <thread>
@@ -147,6 +148,7 @@ public:
     void reset_performance_stats();
     void set_use_direct_texture_access(bool enabled);
     bool get_use_direct_texture_access() const;
+    String get_optimization_strategy() const;
 
 
 private:
@@ -165,6 +167,11 @@ private:
     void _sample_gpu_optimized();
     void _sample_cpu_fallback();
     void _capture_gpu_direct_texture();
+    
+    // M6.5: Hybrid optimization strategy methods
+    bool _capture_cached_texture();
+    void _capture_fallback_optimized();
+    bool _process_cached_image(Ref<Image> img);
     
     // M6.5: Performance monitoring methods
     void _start_performance_timer();
